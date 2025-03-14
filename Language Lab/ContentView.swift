@@ -10,46 +10,29 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    @Query private var words: [ArabicWord]
+    @State private var isFirstLaunch = true
+    
     var body: some View {
-        NavigationSplitView {
+        NavigationView {
             List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                ForEach(words) { word in
+                    VStack(alignment: .leading) {
+                        Text(word.arabic)
+                            .font(.title)
+                        Text(word.transliteration)
+                            .font(.subheadline)
+                        Text(word.translation)
+                            .font(.caption)
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
+            .navigationTitle("Arabic Words")
         }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+        .onAppear {
+            if isFirstLaunch && WordsManager.shared.hasWords(modelContext: modelContext) == false {
+                WordsManager.shared.importWordsFromJSON(modelContext: modelContext)
+                isFirstLaunch = false
             }
         }
     }
@@ -57,5 +40,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: ArabicWord.self, inMemory: true)
 }
