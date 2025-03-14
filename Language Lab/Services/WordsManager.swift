@@ -5,10 +5,12 @@ class WordsManager {
     static let shared = WordsManager()
     
     // Import words from JSON file
-    func importWordsFromJSON(modelContext: ModelContext) {
+    func importWordsFromJSON(modelContext: ModelContext) throws {
         guard let url = Bundle.main.url(forResource: "arabic_words", withExtension: "json") else {
-            print("JSON file not found")
-            return
+            print("JSON file not found - arabic_words.json")
+            // Create a placeholder file if needed
+            createPlaceholderWordsFile()
+            throw NSError(domain: "WordsManager", code: 404, userInfo: [NSLocalizedDescriptionKey: "JSON file not found"])
         }
         
         do {
@@ -48,7 +50,15 @@ class WordsManager {
             print("Successfully imported \(wordDataArray.count) words")
         } catch {
             print("Error importing words: \(error)")
+            throw error
         }
+    }
+    
+    // Helper method to create a placeholder JSON file
+    private func createPlaceholderWordsFile() {
+        // This is just for development - in production you'd want to include the actual file
+        print("Creating placeholder words file would go here")
+        // In a real app, you might create a file in the Documents directory
     }
     
     // Helper method to check if words are already imported
