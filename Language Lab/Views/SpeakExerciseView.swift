@@ -96,6 +96,11 @@ struct SpeakExerciseView: View {
     @State private var correctAnswers = 0
     @State private var incorrectAnswers = 0
     
+    // Add these properties to better manage recognition state
+    @State private var finalRecognizedText: String = ""
+    @State private var recognitionInProgress = false
+    @State private var lastRecognizedText: String = ""
+    
     enum FeedbackState {
         case waiting
         case recording
@@ -521,10 +526,29 @@ struct SpeakExerciseView: View {
     // MARK: - Speech Recognition
     
     private func startRecording() {
+        isRecording = true
+        feedbackState = .recording
+        recognizedText = ""
+        finalRecognizedText = ""
+        lastRecognizedText = ""
+        recognitionInProgress = true
+        
+        // Set up a timer to continuously capture recognized text during recording
+        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+            if !self.isRecording {
+                timer.invalidate()
+                return
+            }
+            
+            // Capture any text that appears during recognition
+            if !self.recognizedText.isEmpty {
+                self.lastRecognizedText = self.recognizedText
+                print("Capturing during recognition: \"\(self.lastRecognizedText)\"")
+            }
+        }
+        
         do {
             try speechRecognizer.startRecording()
-            isRecording = true
-            feedbackState = .recording
         } catch {
             print("Recording error: \(error.localizedDescription)")
         }
@@ -532,23 +556,50 @@ struct SpeakExerciseView: View {
     
     private func stopRecording() {
         guard isRecording else { return }
-        isRecording = false
         
+        // First, capture any text we have before stopping
+        if !recognizedText.isEmpty {
+            finalRecognizedText = recognizedText
+        } else if !lastRecognizedText.isEmpty {
+            // Fall back to the last text we captured during recognition
+            finalRecognizedText = lastRecognizedText
+        }
+        
+        print("Final captured text before stopping: \"\(finalRecognizedText)\"")
+        
+        isRecording = false
+        recognitionInProgress = false
+        
+        // Stop recording with your existing code
         speechRecognizer.stopRecording()
+        
+        // Reset audio session for playback after recording
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .default)
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to reset audio session: \(error)")
+        }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard let currentWord = self.currentWord else { return }
-            self.evaluateRecognitionResult(for: currentWord)
+            
+            // Use our captured text for evaluation
+            let textToEvaluate = self.finalRecognizedText.isEmpty ? self.lastRecognizedText : self.finalRecognizedText
+            print("Text being used for evaluation: \"\(textToEvaluate)\"")
+            
+            self.evaluateRecognitionResult(for: currentWord, withRecognizedText: textToEvaluate)
         }
     }
     
-    private func evaluateRecognitionResult(for word: ArabicWordItem) {
-        // Get the recognized text
-        let finalRecognizedText = recognizedText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+    private func evaluateRecognitionResult(for word: ArabicWordItem, withRecognizedText capturedText: String) {
+        // Use the captured text
+        let finalRecognizedText = capturedText.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Debug information
         print("Target word: \"\(word.arabic)\"")
-        print("Recognized: \"\(finalRecognizedText)\"")
+        print("Evaluating with captured text: \"\(finalRecognizedText)\"")
         
         // Normalize both strings for comparison
         let normalizedTarget = word.arabic
@@ -560,8 +611,16 @@ struct SpeakExerciseView: View {
         print("Normalized target: \"\(normalizedTarget)\"")
         print("Normalized recognized: \"\(normalizedRecognized)\"")
         
-        // Check if the normalized strings match
-        if !normalizedRecognized.isEmpty && (normalizedTarget.contains(normalizedRecognized) || normalizedRecognized.contains(normalizedTarget)) {
+        // More flexible matching for Arabic
+        let matchFound = !normalizedRecognized.isEmpty && (
+            normalizedTarget.contains(normalizedRecognized) || 
+            normalizedRecognized.contains(normalizedTarget) ||
+            // Check if at least half the characters match in sequence
+            normalizedTarget.contains(String(normalizedRecognized.prefix(normalizedRecognized.count/2))) ||
+            normalizedRecognized.contains(String(normalizedTarget.prefix(normalizedTarget.count/2)))
+        )
+        
+        if matchFound {
             print("✅ CORRECT ANSWER")
             feedbackState = .correct
             correctAnswers += 1
