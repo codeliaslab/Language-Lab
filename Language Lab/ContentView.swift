@@ -15,68 +15,106 @@ struct ContentView: View {
     @StateObject private var letterStore = LetterStore.shared
     @StateObject private var wordStore = WordStore.shared
     
-    @State private var isFirstLaunch = true
+    // State variables for navigation
     @State private var showingLetterExercise = false
     @State private var showingWordExercise = false
     @State private var showingSpeakExercise = false
+    @State private var showingLetterLearn = false
+    @State private var showingWordLearn = false
     @State private var showingAlert = false
     @State private var alertMessage = ""
     
+    // Loading state
     @State private var isInitializing = true
+    
+    // Debug flag - can be toggled in UI
+    @State private var debugMode = false
+    
+    // Skip initialization when coming from splash screen
+    var skipInitialization: Bool = false
     
     var body: some View {
         ZStack {
             NavigationView {
-                VStack(spacing: 20) {
-                    Text("Language Lab")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .padding(.top, 30)
-                    
-                    // Debug info
-                    Text("Letters: \(letterStore.letters.count) | Words: \(wordStore.words.count)")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    Spacer()
-                    
-                    // Exercise buttons
-                    VStack(spacing: 15) {
-                        ExerciseButton(title: "Letters", systemImage: "character.textbox") {
-                            showingLetterExercise = true
+                ScrollView {
+                    VStack(spacing: 30) {
+                        // Debug toggle (only visible in development)
+                        #if DEBUG
+                        Toggle("Debug Mode", isOn: $debugMode)
+                            .padding(.horizontal)
+                            .padding(.top, 10)
+                        #endif
+                        
+                        // Debug info
+                        if debugMode {
+                            debugInfoView
                         }
                         
-                        ExerciseButton(title: "Words", systemImage: "text.book.closed") {
-                            showingWordExercise = true
+                        // Learn Section
+                        VStack(spacing: 15) {
+                            sectionHeader(title: "Learn", systemImage: "book.fill")
+                            
+                            ExerciseButton(
+                                title: "Letters",
+                                systemImage: "character.textbox"
+                            ) {
+                                showingLetterLearn = true
+                            }
+                            
+                            ExerciseButton(
+                                title: "Words",
+                                systemImage: "text.book.closed"
+                            ) {
+                                showingWordLearn = true
+                            }
                         }
+                        .padding(.horizontal)
                         
-                        ExerciseButton(title: "Speak", systemImage: "mic.circle") {
-                            showingSpeakExercise = true
+                        // Practice Section
+                        VStack(spacing: 15) {
+                            sectionHeader(title: "Practice", systemImage: "brain.head.profile")
+                            
+                            ExerciseButton(
+                                title: "Letters",
+                                systemImage: "character.textbox"
+                            ) {
+                                if letterStore.letters.isEmpty {
+                                    alertMessage = "Please wait while letters are being initialized."
+                                    showingAlert = true
+                                } else {
+                                    showingLetterExercise = true
+                                }
+                            }
+                            
+                            ExerciseButton(
+                                title: "Words",
+                                systemImage: "text.book.closed"
+                            ) {
+                                if wordStore.words.isEmpty {
+                                    alertMessage = "Please wait while words are being initialized."
+                                    showingAlert = true
+                                } else {
+                                    showingWordExercise = true
+                                }
+                            }
+                            
+                            ExerciseButton(
+                                title: "Speak",
+                                systemImage: "waveform"
+                            ) {
+                                if wordStore.words.isEmpty {
+                                    alertMessage = "Please wait while words are being initialized."
+                                    showingAlert = true
+                                } else {
+                                    showingSpeakExercise = true
+                                }
+                            }
                         }
-                        
-                        ExerciseButton(title: "Phrases", systemImage: "text.bubble") {
-                            // Phrases exercise will be implemented later
-                            alertMessage = "Phrases exercise coming soon!"
-                            showingAlert = true
-                        }
+                        .padding(.horizontal)
                     }
-                    
-                    Spacer()
-                    
-                    // Debug button
-                    Button("Reinitialize Data") {
-                        letterStore.initializeLetters()
-                        wordStore.initializeWords()
-                        alertMessage = "Data reinitialized: \(letterStore.letters.count) letters and \(wordStore.words.count) words available"
-                        showingAlert = true
-                    }
-                    .padding()
-                    .background(colorScheme == .dark ? Color(UIColor.systemGray5) : Color.gray.opacity(0.2))
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
-                    .cornerRadius(8)
+                    .padding(.bottom, 20)
                 }
-                .padding()
-                .navigationTitle("Arabic Learning")
+                .navigationTitle("Language Lab")
                 .sheet(isPresented: $showingLetterExercise) {
                     LetterExerciseView()
                 }
@@ -86,14 +124,28 @@ struct ContentView: View {
                 .sheet(isPresented: $showingSpeakExercise) {
                     SpeakExerciseView()
                 }
+                .sheet(isPresented: $showingLetterLearn) {
+                    // You'll need to create this view
+                    Text("Letter Learn View - Coming Soon")
+                        .font(.title)
+                        .padding()
+                    // Replace with LetterLearnView() when created
+                }
+                .sheet(isPresented: $showingWordLearn) {
+                    // You'll need to create this view
+                    Text("Word Learn View - Coming Soon")
+                        .font(.title)
+                        .padding()
+                    // Replace with WordLearnView() when created
+                }
                 .alert(isPresented: $showingAlert) {
                     Alert(title: Text("Information"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
                 }
                 .opacity(isInitializing ? 0 : 1)
             }
             
-            // Loading overlay
-            if isInitializing {
+            // Loading overlay - only show if not skipping initialization
+            if isInitializing && !skipInitialization {
                 VStack {
                     Text("Language Lab")
                         .font(.largeTitle)
@@ -110,7 +162,13 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            // Initialize data in background
+            // If we're coming from splash screen, data is already initialized
+            if skipInitialization {
+                isInitializing = false
+                return
+            }
+            
+            // Otherwise, initialize data in background
             DispatchQueue.global(qos: .userInitiated).async {
                 // Initialize stores if needed
                 if letterStore.letters.isEmpty {
@@ -130,6 +188,45 @@ struct ContentView: View {
                 }
             }
         }
+    }
+    
+    // Helper view for section headers
+    private func sectionHeader(title: String, systemImage: String) -> some View {
+        HStack {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundColor(.blue)
+            
+            Text(title)
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Spacer()
+        }
+        .padding(.top, 5)
+    }
+    
+    // Debug information view
+    private var debugInfoView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Debug Information")
+                .font(.headline)
+                .padding(.bottom, 4)
+            
+            Group {
+                Text("Letters loaded: \(letterStore.letters.count)")
+                Text("Words loaded: \(wordStore.words.count)")
+                Text("SwiftData words: \(words.count)")
+                Text("Color scheme: \(colorScheme == .dark ? "Dark" : "Light")")
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(10)
+        .padding(.horizontal)
     }
 }
 

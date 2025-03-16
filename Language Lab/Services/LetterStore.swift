@@ -26,7 +26,7 @@ class LetterStore: ObservableObject {
         // Add timing for performance tracking
         let startTime = CFAbsoluteTimeGetCurrent()
         
-        // Create letters array
+        // Create letters array (currently used)
         let newLetters = [
             ArabicLetterItem(id: UUID(), arabic: "ا", transliteration: "alif", position: 1),
             ArabicLetterItem(id: UUID(), arabic: "ب", transliteration: "ba", position: 2),
@@ -38,7 +38,7 @@ class LetterStore: ObservableObject {
             ArabicLetterItem(id: UUID(), arabic: "د", transliteration: "dal", position: 8),
             ArabicLetterItem(id: UUID(), arabic: "ذ", transliteration: "dhal", position: 9),
             ArabicLetterItem(id: UUID(), arabic: "ر", transliteration: "ra", position: 10),
-            ArabicLetterItem(id: UUID(), arabic: "ز", transliteration: "zay", position: 11),
+            ArabicLetterItem(id: UUID(), arabic: "ز", transliteration: "zeen", position: 11),
             ArabicLetterItem(id: UUID(), arabic: "س", transliteration: "seen", position: 12),
             ArabicLetterItem(id: UUID(), arabic: "ش", transliteration: "sheen", position: 13),
             ArabicLetterItem(id: UUID(), arabic: "ص", transliteration: "saad", position: 14),

@@ -1,10 +1,15 @@
 import SwiftUI
 import SwiftData
 
+@main
 struct LanguageLabApp: App {
+    @State private var isInitialized = false
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            ArabicWord.self
+            ArabicWord.self,
+            ArabicLetter.self,
+            LetterProgress.self
         ])
         
         let modelConfiguration = ModelConfiguration(
@@ -19,12 +24,24 @@ struct LanguageLabApp: App {
         }
     }()
     
+    init() {
+        // Start initialization in init
+        print("App starting initialization")
+        // We'll initialize data in SplashScreen instead
+    }
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .onAppear {
-                    // Nothing here - initialization happens in ContentView
+            if !isInitialized {
+                SplashScreen {
+                    // This closure is called when initialization is complete
+                    withAnimation(.easeIn(duration: 0.6)) {
+                        isInitialized = true
+                    }
                 }
+            } else {
+                ContentView(skipInitialization: true)
+            }
         }
         .modelContainer(sharedModelContainer)
     }
