@@ -3,34 +3,47 @@ import SwiftData
 
 class LettersManager {
     static let shared = LettersManager()
+    private var isInitializing = false
     
     // Initialize Arabic letters if not already in database
     func initializeLetters(modelContext: ModelContext) {
-        var descriptor = FetchDescriptor<ArabicLetter>()
-        descriptor.fetchLimit = 1
+        // Skip if already initializing
+        if isInitializing {
+            print("LettersManager: Already initializing, skipping")
+            return
+        }
         
-        do {
-            let count = try modelContext.fetchCount(descriptor)
-            if count == 0 {
-                // No letters in database, add them
-                let letters = createArabicLetters()
-                for letter in letters {
-                    modelContext.insert(letter)
+        isInitializing = true
+        let startTime = CFAbsoluteTimeGetCurrent()
+        
+        // Move database operations to background
+        Task {
+            do {
+                var descriptor = FetchDescriptor<ArabicLetter>()
+                descriptor.fetchLimit = 1
+                
+                let count = try modelContext.fetchCount(descriptor)
+                if count == 0 {
+                    // No letters in database, add them
+                    let letters = createArabicLetters()
+                    
+                    // Batch insert for better performance
+                    for letter in letters {
+                        modelContext.insert(letter)
+                    }
+                    
+                    try modelContext.save()
+                    
+                    let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+                    print("LettersManager: Successfully initialized \(letters.count) Arabic letters in \(timeElapsed) seconds")
+                } else {
+                    print("LettersManager: Letters already initialized, found \(count) letters")
                 }
-                
-                // Make sure to save the context
-                try modelContext.save()
-                print("Successfully initialized \(letters.count) Arabic letters")
-            } else {
-                print("Letters already initialized, found \(count) letters")
-                
-                // Debug: Let's check what letters we have
-                let allLettersDescriptor = FetchDescriptor<ArabicLetter>()
-                let existingLetters = try modelContext.fetch(allLettersDescriptor)
-                print("Found \(existingLetters.count) letters in database")
+            } catch {
+                print("LettersManager: Error checking for letters: \(error)")
             }
-        } catch {
-            print("Error checking for letters: \(error)")
+            
+            isInitializing = false
         }
     }
     

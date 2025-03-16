@@ -6,14 +6,28 @@ class LetterStore: ObservableObject {
     static let shared = LetterStore()
     
     @Published var letters: [ArabicLetterItem] = []
+    private var isInitializing = false
     
+    // Remove initialization from init
     init() {
-        // Initialize with all Arabic letters
-        initializeLetters()
+        // Don't initialize here - we'll do it on demand
     }
     
     func initializeLetters() {
-        letters = [
+        // Skip if already initialized or in progress
+        if !letters.isEmpty || isInitializing {
+            print("LetterStore: Letters already initialized or initializing, skipping")
+            return
+        }
+        
+        // Set flag to prevent concurrent initialization
+        isInitializing = true
+        
+        // Add timing for performance tracking
+        let startTime = CFAbsoluteTimeGetCurrent()
+        
+        // Create letters array
+        let newLetters = [
             ArabicLetterItem(id: UUID(), arabic: "ا", transliteration: "alif", position: 1),
             ArabicLetterItem(id: UUID(), arabic: "ب", transliteration: "ba", position: 2),
             ArabicLetterItem(id: UUID(), arabic: "ت", transliteration: "ta", position: 3),
@@ -44,7 +58,15 @@ class LetterStore: ObservableObject {
             ArabicLetterItem(id: UUID(), arabic: "ي", transliteration: "ya", position: 28)
         ]
         
-        print("Initialized \(letters.count) Arabic letters in LetterStore")
+        // Update on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.letters = newLetters
+            self.isInitializing = false
+            
+            let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+            print("LetterStore: Initialized \(self.letters.count) Arabic letters in \(timeElapsed) seconds")
+        }
     }
     
     // Track user progress with letters
