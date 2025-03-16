@@ -23,9 +23,7 @@ struct LanguageLabApp: App {
         WindowGroup {
             ContentView()
                 .onAppear {
-                    // Make sure data is initialized when app starts
-                    LetterStore.shared.initializeLetters()
-                    WordStore.shared.initializeWords()
+                    // Nothing here - initialization happens in ContentView
                 }
         }
         .modelContainer(sharedModelContainer)

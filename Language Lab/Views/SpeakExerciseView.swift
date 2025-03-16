@@ -2,6 +2,39 @@ import SwiftUI
 import Speech
 import AVFoundation
 
+// Add Color extension for custom colors
+extension Color {
+    static let correctGreen = Color(hex: "#58cc02")
+}
+
+// Add hex initializer for Color
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
 // Helper class to handle speech synthesis
 class SpeechSynthesizer: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     @Published var isPlaying = false
@@ -75,8 +108,8 @@ struct SpeakExerciseView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var wordStore = WordStore.shared
-    @StateObject private var speechRecognizer = SpeechRecognizer()
-    @StateObject private var speechSynthesizer = SpeechSynthesizer()
+    @State private var speechRecognizer: SpeechRecognizer?
+    @State private var speechSynthesizer: SpeechSynthesizer?
     
     @State private var currentWord: ArabicWordItem?
     @State private var recognizedText = ""
@@ -104,6 +137,13 @@ struct SpeakExerciseView: View {
     @State private var recognitionTimer: Timer?
     @State private var lastNonEmptyText: String = ""
     
+    // Add a proper app initialization state
+    @State private var isAppInitializing = true
+    
+    // Add or update these feedback generator properties
+    @State private var feedbackGenerator = UINotificationFeedbackGenerator()
+    @State private var impactGenerator = UIImpactFeedbackGenerator(style: .light)
+    
     enum FeedbackState {
         case waiting
         case recording
@@ -113,165 +153,230 @@ struct SpeakExerciseView: View {
     }
     
     var body: some View {
-        VStack {
-            // Header with centered score
-            VStack(spacing: 2) {
-                Text("Score:")
-                    .fontWeight(.medium)
+        ZStack {
+            // Main content
+            VStack {
+                // Header with centered score
+                VStack(spacing: 2) {
+                    Text("Score:")
+                        .fontWeight(.medium)
+                    
+                    Text("\(correctAnswers)/\(correctAnswers + incorrectAnswers)")
+                        .fontWeight(.semibold)
+                        .font(.title3)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
                 
-                Text("\(correctAnswers)/\(correctAnswers + incorrectAnswers)")
-                    .fontWeight(.semibold)
-                    .font(.title3)
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
-            
-            if isLoading {
-                ProgressView("Loading words...")
-                    .padding()
-                    .onAppear {
-                        // Start loading words immediately
-                        loadWords()
-                    }
-            } else if wordStore.words.isEmpty {
-                VStack(spacing: 20) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 60))
-                        .foregroundColor(.orange)
-                    
-                    Text("No Words Available")
-                        .font(.title)
-                        .fontWeight(.bold)
-                    
-                    Text("Please initialize the Arabic words to continue.")
-                        .multilineTextAlignment(.center)
+                if isLoading {
+                    ProgressView("Loading words...")
                         .padding()
-                    
-                    Button("Initialize Words") {
-                        wordStore.initializeWords()
-                        isLoading = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        .onAppear {
+                            // Start loading words immediately
                             loadWords()
                         }
-                    }
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
-                .padding()
-            } else if sessionCompleted {
-                sessionCompletedView
-            } else if let word = currentWord {
-                Spacer()
-                
-                // Word card
-                VStack(spacing: 16) {
-                    HStack {
-                        Text(word.arabic)
-                            .font(.system(size: 36, weight: .bold))
-                            .padding(.vertical, 8)
-                        
-                        Button(action: {
-                            speakWord(word)
-                        }) {
-                            Image(systemName: "speaker.wave.2.fill")
-                                .font(.system(size: 24))
-                                .foregroundColor(.blue)
-                                .padding(8)
-                                .background(
-                                    Circle()
-                                        .fill(Color.blue.opacity(0.1))
-                                )
-                        }
-                        .disabled(speechSynthesizer.isPlaying)
-                        .opacity(speechSynthesizer.isPlaying ? 0.5 : 1.0)
-                    }
-                    
-                    Text(word.transliteration)
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.secondary)
-                    
-                    Text(word.translation)
-                        .font(.system(size: 18))
-                        .foregroundColor(.primary)
-                        .padding(.bottom, 8)
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(colorScheme == .dark ? Color(white: 0.2) : Color.white)
-                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-                )
-                .padding(.horizontal)
-                
-                Spacer()
-                
-                // Feedback area
-                VStack(spacing: 16) {
-                    switch feedbackState {
-                    case .waiting:
-                        // "HOLD TO SPEAK" instruction that pulses
-                        if showHoldInstruction {
-                        // empty
-                        }
-                        
-                    case .recording:
-                        Text("Recording...")
-                            .font(.headline)
-                            .foregroundColor(.blue)
-                        
-                        if !recognizedText.isEmpty {
-                            Text("Heard: \(recognizedText)")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal)
-                                .multilineTextAlignment(.center)
-                        }
-                        
-                    case .correct:
-                        Text("Correct! 🎉")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.green)
-                        
-                        Button("Continue") {
-                            moveToNextWord()
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                        .shadow(color: Color.green.opacity(0.3), radius: 5, x: 0, y: 3)
-                        .padding()
-                        
-                    case .tryAgain:
-                        Text("Try Again")
-                            .font(.title2)
-                            .fontWeight(.bold)
+                } else if wordStore.words.isEmpty {
+                    VStack(spacing: 20) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 60))
                             .foregroundColor(.orange)
                         
-                        Text("Attempts remaining: \(attemptsRemaining)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        Text("No Words Available")
+                            .font(.title)
+                            .fontWeight(.bold)
                         
-                        if !recognizedText.isEmpty && debugMode {
-                            Text("Heard: \(recognizedText)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal)
-                                .multilineTextAlignment(.center)
+                        Text("Please initialize the Arabic words to continue.")
+                            .multilineTextAlignment(.center)
+                            .padding()
+                        
+                        Button("Initialize Words") {
+                            wordStore.initializeWords()
+                            isLoading = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                loadWords()
+                            }
+                        }
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                    }
+                    .padding()
+                } else if sessionCompleted {
+                    sessionCompletedView
+                } else if let word = currentWord {
+                    Spacer()
+                    
+                    // Word card
+                    VStack(spacing: 16) {
+                        HStack {
+                            Text(word.arabic)
+                                .font(.system(size: 36, weight: .bold))
+                                .padding(.vertical, 8)
+                            
+                            Button(action: {
+                                speakWord(word)
+                            }) {
+                                Image(systemName: "speaker.wave.2.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundColor(.blue)
+                                    .padding(8)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.blue.opacity(0.1))
+                                    )
+                            }
+                            .disabled(speechSynthesizer?.isPlaying ?? false)
+                            .opacity(speechSynthesizer?.isPlaying ?? false ? 0.5 : 1.0)
                         }
                         
-                    case .incorrect:
-                        Text("Incorrect")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.red)
+                        Text(word.transliteration)
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.secondary)
+                        
+                        Text(word.translation)
+                            .font(.system(size: 18))
+                            .foregroundColor(.primary)
+                            .padding(.bottom, 8)
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(colorScheme == .dark ? Color(white: 0.2) : Color.white)
+                            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                    )
+                    .padding(.horizontal)
+                    
+                    Spacer()
+                    
+                    // Feedback area
+                    VStack(spacing: 16) {
+                        // Feedback message area
+                        VStack(spacing: 16) {
+                            switch feedbackState {
+                            case .waiting:
+                                // Empty state - just show recording instructions
+                                if showHoldInstruction {
+                                    Text("HOLD TO SPEAK")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.blue)
+                                        .scaleEffect(1.0)
+                                        .padding(.vertical, 4)
+                                        .opacity(0.8)
+                                }
+                                
+                            case .recording:
+                                Text("Recording...")
+                                    .font(.headline)
+                                    .foregroundColor(.secondary)
+                                
+                                if !recognizedText.isEmpty {
+                                    HStack(spacing: 4) {
+                                        Text("Heard:")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text(recognizedText)
+                                            .font(.subheadline)
+                                            .foregroundColor(.orange)
+                                    }
+                                    .padding(.horizontal)
+                                    .multilineTextAlignment(.center)
+                                } else {
+                                    Text(" ")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal)
+                                        .multilineTextAlignment(.center)
+                                }
+                                
+                            case .correct:
+                                Text("Correct! 🎉")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.correctGreen)
+                                    .onAppear {
+                                        // Trigger success haptic feedback
+                                        feedbackGenerator.notificationOccurred(.success)
+                                    }
+                                
+                            case .tryAgain:
+                                Text("Try Again")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.orange)
+                                    .onAppear {
+                                        // Trigger warning haptic feedback
+                                        feedbackGenerator.notificationOccurred(.warning)
+                                    }
+                                
+                                Text("Attempts remaining: \(attemptsRemaining)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                            case .incorrect:
+                                Text("Incorrect")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.red)
+                                    .onAppear {
+                                        // Trigger error haptic feedback
+                                        feedbackGenerator.notificationOccurred(.error)
+                                    }
+                            }
+                        }
+                        .frame(height: 100)
+                        .padding()
+                        
+                        Spacer() // Push content to top and button to bottom
 
+
+                        // Microphone button
+                        VStack { 
+                            Text("HOLD TO SPEAK")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                                .padding(.vertical, 4)
+                                .opacity(0.8)
+
+                            ZStack {
+                                Circle()
+                                    .fill(isRecording ? Color.red : Color.blue)
+                                    .frame(width: 70, height: 70)
+                                    .shadow(color: (isRecording ? Color.red : Color.blue).opacity(0.3), radius: 10, x: 0, y: 5)
+                                
+                                Image(systemName: "mic.fill")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(.white)
+                                    .scaleEffect(isRecording ? 1.2 : 1.0)
+                                    .animation(.spring(response: 0.3), value: isRecording)
+                            }
+                            .frame(width: 70, height: 70)
+                            .padding(.bottom, 30)
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { _ in
+                                        if !isRecording && !isProcessingResult && feedbackState != .correct && feedbackState != .incorrect {
+                                            startRecording()
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        if isRecording {
+                                            stopRecording()
+                                        }
+                                    }
+                            )
+                            .disabled(isProcessingResult || feedbackState == .correct || feedbackState == .incorrect)
+                            .opacity((isProcessingResult || feedbackState == .correct || feedbackState == .incorrect) ? 0.5 : 1.0)
+                        }
+                        
+                        // Continue button - always at bottom, enabled only for correct/incorrect states
                         Button(action: {
+                            // Trigger haptic on press down
+                            impactGenerator.impactOccurred()
                             moveToNextWord()
                         }) {
                             Text("Continue")
@@ -279,84 +384,68 @@ struct SpeakExerciseView: View {
                                 .fontWeight(.semibold)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.blue)
+                                .background(
+                                    feedbackState == .correct || feedbackState == .incorrect 
+                                    ? (feedbackState == .correct ? Color.correctGreen : Color.blue)
+                                    : Color.gray
+                                )
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
                         }
-                        .padding()
+                        .disabled(feedbackState != .correct && feedbackState != .incorrect)
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
                     }
-                }
-                .frame(height: 150)
-                .padding()
-                
-                // Debug panel
-                if debugMode && !recognizedText.isEmpty && feedbackState != .correct && feedbackState != .incorrect {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Debug Info:")
+                    .frame(maxHeight: .infinity)
+                    
+                    // Debug panel
+                    if debugMode && !recognizedText.isEmpty && feedbackState != .correct && feedbackState != .incorrect {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Debug Info:")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                            
+                            Text("Recognized: \(recognizedText)")
+                                .font(.caption)
+                            
+                            Button("Play Recording") {
+                                playRecording()
+                            }
                             .font(.caption)
-                            .fontWeight(.bold)
-                        
-                        Text("Recognized: \(recognizedText)")
-                            .font(.caption)
-                        
-                        Button("Play Recording") {
-                            playRecording()
+                            .padding(.vertical, 4)
                         }
-                        .font(.caption)
-                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                        .background(Color.gray.opacity(0.1))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    .background(Color.gray.opacity(0.1))
+                    
                 }
                 
-                // Microphone button
-                VStack { 
-                    Text("HOLD TO SPEAK")
-                        .font(.caption)
+                // Example usage of getRecordingURL
+                // Button("Show Recording Path") {
+                //     let url = getRecordingURL()
+                //     print("Recording URL: \(url.path)")
+                // }
+            }
+            .opacity(isAppInitializing ? 0 : 1)
+            
+            // Initialization overlay
+            if isAppInitializing {
+                VStack {
+                    Text("Language Lab")
+                        .font(.largeTitle)
                         .fontWeight(.bold)
-                        .foregroundColor(.blue)
-                        .padding(.vertical, 4)
-                        .opacity(0.8)
-
-                    ZStack {
-                        Circle()
-                            .fill(isRecording ? Color.red : Color.blue)
-                            .frame(width: 70, height: 70)
-                            .shadow(color: (isRecording ? Color.red : Color.blue).opacity(0.3), radius: 10, x: 0, y: 5)
-                        
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 30))
-                            .foregroundColor(.white)
-                            .scaleEffect(isRecording ? 1.2 : 1.0)
-                            .animation(.spring(response: 0.3), value: isRecording)
-                    }
-                    .frame(width: 70, height: 70)
-                    .padding(.bottom, 30)
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { _ in
-                                if !isRecording && !isProcessingResult && feedbackState != .correct && feedbackState != .incorrect {
-                                    startRecording()
-                                }
-                            }
-                            .onEnded { _ in
-                                if isRecording {
-                                    stopRecording()
-                                }
-                            }
-                    )
-                    .disabled(isProcessingResult || feedbackState == .correct || feedbackState == .incorrect)
-                    .opacity((isProcessingResult || feedbackState == .correct || feedbackState == .incorrect) ? 0.5 : 1.0)
+                        .padding(.bottom, 20)
+                    
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .padding()
+                    
+                    Text("Loading...")
+                        .foregroundColor(.secondary)
                 }
             }
-            
-            // Example usage of getRecordingURL
-            // Button("Show Recording Path") {
-            //     let url = getRecordingURL()
-            //     print("Recording URL: \(url.path)")
-            // }
         }
         .navigationTitle("Speak")
         .navigationBarTitleDisplayMode(.inline)
@@ -368,10 +457,29 @@ struct SpeakExerciseView: View {
             }
         }
         .onAppear {
-            requestSpeechAuthorization()
-            // Start the "HOLD TO SPEAK" pulsing animation
-            withAnimation(.easeInOut(duration: 1.5).repeatForever()) {
-                showHoldInstruction = true
+            // Initialize in background
+            DispatchQueue.global(qos: .userInitiated).async {
+                // Initialize speech services
+                let recognizer = SpeechRecognizer()
+                let synthesizer = SpeechSynthesizer()
+                
+                // Switch back to main thread to update UI
+                DispatchQueue.main.async {
+                    self.speechRecognizer = recognizer
+                    self.speechSynthesizer = synthesizer
+                    
+                    // Show the UI
+                    withAnimation(.easeIn(duration: 0.3)) {
+                        self.isAppInitializing = false
+                    }
+                    
+                    // Request permissions after UI is visible
+                    self.requestSpeechAuthorization()
+                    
+                    // Prepare haptic feedback generators
+                    self.feedbackGenerator.prepare()
+                    self.impactGenerator.prepare()
+                }
             }
         }
     }
@@ -380,7 +488,7 @@ struct SpeakExerciseView: View {
         VStack(spacing: 24) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 80))
-                .foregroundColor(.green)
+                .foregroundColor(.correctGreen)
             
             Text("Session Completed!")
                 .font(.title)
@@ -395,7 +503,7 @@ struct SpeakExerciseView: View {
                     
                     Text("\(correctAnswers)")
                         .fontWeight(.bold)
-                        .foregroundColor(.green)
+                        .foregroundColor(.correctGreen)
                 }
                 
                 HStack {
@@ -517,6 +625,12 @@ struct SpeakExerciseView: View {
     // MARK: - Speech Recognition
     
     private func startRecording() {
+        // Ensure speech recognizer is initialized
+        guard let speechRecognizer = speechRecognizer else {
+            print("Speech recognizer not initialized")
+            return
+        }
+        
         isRecording = true
         feedbackState = .recording
         recognizedText = ""
@@ -537,11 +651,11 @@ struct SpeakExerciseView: View {
         speechRecognizer.startRecording()
         
         // Start a timer to continuously capture recognized text
-        recognitionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+        recognitionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] timer in
             guard self.isRecording else { return }
             
             // Get current recognized text from the speech recognizer
-            let currentText = self.speechRecognizer.recognizedText
+            let currentText = speechRecognizer.recognizedText
             self.recognizedText = currentText
             
             // Store non-empty text
@@ -571,7 +685,7 @@ struct SpeakExerciseView: View {
         isRecording = false
         
         // Stop recording using SpeechRecognizer
-        speechRecognizer.stopRecording()
+        speechRecognizer?.stopRecording()
         
         // Reset audio session for playback
         resetAudioSessionForPlayback()
@@ -608,7 +722,7 @@ struct SpeakExerciseView: View {
         } else if !recognitionBuffer.isEmpty {
             return getBestRecognizedText()
         } else {
-            return speechRecognizer.recognizedText
+            return speechRecognizer?.recognizedText ?? ""
         }
     }
     
@@ -689,7 +803,15 @@ struct SpeakExerciseView: View {
     
     // Speak the word using text-to-speech
     private func speakWord(_ word: ArabicWordItem) {
+        // Ensure speech synthesizer is initialized
+        guard let speechSynthesizer = speechSynthesizer else {
+            print("Speech synthesizer not initialized")
+            return
+        }
+        
         print("Speaking word: \(word.arabic)")
+        // Trigger haptic feedback
+//        impactGenerator.impactOccurred()
         speechSynthesizer.speak(word.arabic)
     }
     

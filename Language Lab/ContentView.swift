@@ -22,74 +22,97 @@ struct ContentView: View {
     @State private var showingAlert = false
     @State private var alertMessage = ""
     
+    @State private var isInitializing = true
+    
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                Text("Language Lab")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .padding(.top, 30)
-                
-                // Debug info
-                Text("Letters: \(letterStore.letters.count) | Words: \(wordStore.words.count)")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                
-                Spacer()
-                
-                // Exercise buttons
-                VStack(spacing: 15) {
-                    ExerciseButton(title: "Letters", systemImage: "character.textbox") {
-                        showingLetterExercise = true
+        ZStack {
+            NavigationView {
+                VStack(spacing: 20) {
+                    Text("Language Lab")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .padding(.top, 30)
+                    
+                    // Debug info
+                    Text("Letters: \(letterStore.letters.count) | Words: \(wordStore.words.count)")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    Spacer()
+                    
+                    // Exercise buttons
+                    VStack(spacing: 15) {
+                        ExerciseButton(title: "Letters", systemImage: "character.textbox") {
+                            showingLetterExercise = true
+                        }
+                        
+                        ExerciseButton(title: "Words", systemImage: "text.book.closed") {
+                            showingWordExercise = true
+                        }
+                        
+                        ExerciseButton(title: "Speak", systemImage: "mic.circle") {
+                            showingSpeakExercise = true
+                        }
+                        
+                        ExerciseButton(title: "Phrases", systemImage: "text.bubble") {
+                            // Phrases exercise will be implemented later
+                            alertMessage = "Phrases exercise coming soon!"
+                            showingAlert = true
+                        }
                     }
                     
-                    ExerciseButton(title: "Words", systemImage: "text.book.closed") {
-                        showingWordExercise = true
-                    }
+                    Spacer()
                     
-                    ExerciseButton(title: "Speak", systemImage: "mic.circle") {
-                        showingSpeakExercise = true
-                    }
-                    
-                    ExerciseButton(title: "Phrases", systemImage: "text.bubble") {
-                        // Phrases exercise will be implemented later
-                        alertMessage = "Phrases exercise coming soon!"
+                    // Debug button
+                    Button("Reinitialize Data") {
+                        letterStore.initializeLetters()
+                        wordStore.initializeWords()
+                        alertMessage = "Data reinitialized: \(letterStore.letters.count) letters and \(wordStore.words.count) words available"
                         showingAlert = true
                     }
-                }
-                
-                Spacer()
-                
-                // Debug button
-                Button("Reinitialize Data") {
-                    letterStore.initializeLetters()
-                    wordStore.initializeWords()
-                    alertMessage = "Data reinitialized: \(letterStore.letters.count) letters and \(wordStore.words.count) words available"
-                    showingAlert = true
+                    .padding()
+                    .background(colorScheme == .dark ? Color(UIColor.systemGray5) : Color.gray.opacity(0.2))
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .cornerRadius(8)
                 }
                 .padding()
-                .background(colorScheme == .dark ? Color(UIColor.systemGray5) : Color.gray.opacity(0.2))
-                .foregroundColor(colorScheme == .dark ? .white : .black)
-                .cornerRadius(8)
+                .navigationTitle("Arabic Learning")
+                .sheet(isPresented: $showingLetterExercise) {
+                    LetterExerciseView()
+                }
+                .sheet(isPresented: $showingWordExercise) {
+                    WordExerciseView()
+                }
+                .sheet(isPresented: $showingSpeakExercise) {
+                    SpeakExerciseView()
+                }
+                .alert(isPresented: $showingAlert) {
+                    Alert(title: Text("Information"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
+                }
+                .opacity(isInitializing ? 0 : 1)
             }
-            .padding()
-            .navigationTitle("Arabic Learning")
-            .sheet(isPresented: $showingLetterExercise) {
-                LetterExerciseView()
-            }
-            .sheet(isPresented: $showingWordExercise) {
-                WordExerciseView()
-            }
-            .sheet(isPresented: $showingSpeakExercise) {
-                SpeakExerciseView()
-            }
-            .alert(isPresented: $showingAlert) {
-                Alert(title: Text("Information"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
+            
+            // Loading overlay
+            if isInitializing {
+                VStack {
+                    Text("Language Lab")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .padding(.bottom, 20)
+                    
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .padding()
+                    
+                    Text("Loading...")
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .onAppear {
-            if isFirstLaunch {
-                // Make sure data is initialized
+            // Initialize data in background
+            DispatchQueue.global(qos: .userInitiated).async {
+                // Initialize stores if needed
                 if letterStore.letters.isEmpty {
                     letterStore.initializeLetters()
                 }
@@ -98,7 +121,13 @@ struct ContentView: View {
                     wordStore.initializeWords()
                 }
                 
-                isFirstLaunch = false
+                // Return to main thread to update UI
+                DispatchQueue.main.async {
+                    // Show UI with animation
+                    withAnimation(.easeIn(duration: 0.3)) {
+                        isInitializing = false
+                    }
+                }
             }
         }
     }
