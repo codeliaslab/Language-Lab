@@ -103,9 +103,6 @@ struct LetterDetailView: View {
     private let speechSynthesizer = AVSpeechSynthesizer()
     @State private var isPlaying = false
     
-    // Voice names for display
-    let voiceNames = ["Saudi Arabic", "Egyptian Arabic", "Standard Arabic"]
-    
     // Get example words for this letter in different positions
     var exampleWords: [(arabic: String, transliteration: String, position: String)] {
         var result: [(arabic: String, transliteration: String, position: String)] = []
@@ -153,37 +150,18 @@ struct LetterDetailView: View {
                         .font(.title2)
                         .foregroundColor(.secondary)
                     
-                    HStack(spacing: 20) {
-                        Button(action: {
-                            pronounceLetter()
-                        }) {
-                            HStack {
-                                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                    .font(.title)
-                                Text(isPlaying ? "Playing..." : "Pronounce")
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                        }
-                        .disabled(isPlaying)
-                        
-                        Button(action: {
-                            cycleVoice()
-                        }) {
-                            HStack {
-                                Image(systemName: "person.wave.2.fill")
-                                Text(voiceNames[currentVoiceIndex])
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(Color.gray.opacity(0.2))
-                            .foregroundColor(.primary)
-                            .cornerRadius(10)
-                        }
-                    }
+                    Button(action: {
+                        pronounceLetter()
+                    }) {
+                        Image(systemName: isPlaying ? "speaker.wave.3.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(isPlaying ? .gray : .blue)
+                            .padding(8)
+                            .background(
+                                Circle()
+                                    .fill(Color.blue.opacity(0.1))
+                            )
+                    } .disabled(isPlaying)
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
@@ -196,9 +174,9 @@ struct LetterDetailView: View {
                     Text("Example Words")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
                     
-                    ForEach(exampleWords, id: \.arabic) { word in
+                    ForEach(exampleWords, id: \.position) { word in
                         ExampleWordView(
                             arabicWord: word.arabic,
                             transliteration: word.transliteration,
@@ -208,11 +186,10 @@ struct LetterDetailView: View {
                     }
                 }
                 .padding(.horizontal)
-                
-                Spacer(minLength: 40)
             }
+            .padding(.vertical)
         }
-        .navigationTitle("Letter: \(letter.transliteration)")
+        .navigationTitle("Letter Details")
         .navigationBarTitleDisplayMode(.inline)
     }
     
@@ -231,14 +208,21 @@ struct LetterDetailView: View {
         // Create utterance with the letter
         let utterance = AVSpeechUtterance(string: letter.arabic)
         
-        // Use language code instead of specific voice identifier
-        utterance.voice = AVSpeechSynthesisVoice(language: voices[currentVoiceIndex])
+        // Try to use a female voice if available
+        if let femaleVoice = AVSpeechSynthesisVoice.speechVoices().first(where: { 
+            $0.language.starts(with: "ar") && $0.gender == .female 
+        }) {
+            utterance.voice = femaleVoice
+            print("Using female voice: \(femaleVoice.identifier)")
+        } else {
+            // Fall back to any Arabic voice
+            utterance.voice = AVSpeechSynthesisVoice(language: "ar")
+            print("Female voice not available, falling back to default Arabic voice")
+        }
+        
         utterance.rate = 0.5
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
-        
-        // Set up completion handler
-        speechSynthesizer.delegate = nil // Remove any existing delegate
         
         // Speak
         speechSynthesizer.speak(utterance)
@@ -247,10 +231,6 @@ struct LetterDetailView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             isPlaying = false
         }
-    }
-    
-    private func cycleVoice() {
-        currentVoiceIndex = (currentVoiceIndex + 1) % voices.count
     }
 }
 
@@ -271,12 +251,12 @@ struct ExampleWordView: View {
                 .foregroundColor(.secondary)
             
             HStack {
-                Spacer() // Push content to the right for RTL effect
-                
                 // Use AttributedString to maintain connected form while highlighting
                 Text(highlightedAttributedString)
                     .font(.system(size: 30))
                     .environment(\.layoutDirection, .rightToLeft) // Ensure proper RTL display
+
+                Spacer() // Push content to the right for RTL effect
                 
                 Button(action: {
                     pronounceWord()

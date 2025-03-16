@@ -75,7 +75,7 @@ struct ContentView: View {
                             sectionHeader(title: "Practice", systemImage: "brain.head.profile")
                             
                             ExerciseButton(
-                                title: "Letters Exercise",
+                                title: "Letters",
                                 systemImage: "character.textbox",
                                 backgroundColor: .purple
                             ) {
@@ -88,7 +88,7 @@ struct ContentView: View {
                             }
                             
                             ExerciseButton(
-                                title: "Words Exercise",
+                                title: "Words",
                                 systemImage: "doc.text",
                                 backgroundColor: .purple
                             ) {
@@ -101,7 +101,7 @@ struct ContentView: View {
                             }
                             
                             ExerciseButton(
-                                title: "Speaking Practice",
+                                title: "Speaking",
                                 systemImage: "waveform",
                                 backgroundColor: .purple
                             ) {
