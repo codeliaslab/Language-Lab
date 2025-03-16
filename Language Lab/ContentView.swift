@@ -75,8 +75,9 @@ struct ContentView: View {
                             sectionHeader(title: "Practice", systemImage: "brain.head.profile")
                             
                             ExerciseButton(
-                                title: "Letters",
-                                systemImage: "character.textbox"
+                                title: "Letters Exercise",
+                                systemImage: "character.textbox",
+                                backgroundColor: .purple
                             ) {
                                 if letterStore.letters.isEmpty {
                                     alertMessage = "Please wait while letters are being initialized."
@@ -87,8 +88,9 @@ struct ContentView: View {
                             }
                             
                             ExerciseButton(
-                                title: "Words",
-                                systemImage: "text.book.closed"
+                                title: "Words Exercise",
+                                systemImage: "doc.text",
+                                backgroundColor: .purple
                             ) {
                                 if wordStore.words.isEmpty {
                                     alertMessage = "Please wait while words are being initialized."
@@ -99,8 +101,9 @@ struct ContentView: View {
                             }
                             
                             ExerciseButton(
-                                title: "Speak",
-                                systemImage: "waveform"
+                                title: "Speaking Practice",
+                                systemImage: "waveform",
+                                backgroundColor: .purple
                             ) {
                                 if wordStore.words.isEmpty {
                                     alertMessage = "Please wait while words are being initialized."
@@ -125,18 +128,10 @@ struct ContentView: View {
                     SpeakExerciseView()
                 }
                 .sheet(isPresented: $showingLetterLearn) {
-                    // You'll need to create this view
-                    Text("Letter Learn View - Coming Soon")
-                        .font(.title)
-                        .padding()
-                    // Replace with LetterLearnView() when created
+                    LetterLearnView()
                 }
                 .sheet(isPresented: $showingWordLearn) {
-                    // You'll need to create this view
-                    Text("Word Learn View - Coming Soon")
-                        .font(.title)
-                        .padding()
-                    // Replace with WordLearnView() when created
+                    WordLearnView()
                 }
                 .alert(isPresented: $showingAlert) {
                     Alert(title: Text("Information"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
@@ -233,7 +228,15 @@ struct ContentView: View {
 struct ExerciseButton: View {
     var title: String
     var systemImage: String
+    var backgroundColor: Color
     var action: () -> Void
+    
+    init(title: String, systemImage: String, backgroundColor: Color = .blue, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.backgroundColor = backgroundColor
+        self.action = action
+    }
     
     var body: some View {
         Button(action: action) {
@@ -246,7 +249,7 @@ struct ExerciseButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding()
-            .background(Color.blue)
+            .background(backgroundColor)
             .foregroundColor(.white)
             .cornerRadius(10)
             .shadow(radius: 2)
