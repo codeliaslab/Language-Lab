@@ -1,9 +1,11 @@
 import SwiftUI
+import AVFoundation
 
 struct LetterExerciseView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var letterStore = LetterStore.shared
+    @StateObject private var speechSynthesizer = SpeechSynthesizer()
     
     @State private var currentLetter: ArabicLetterItem?
     @State private var options: [String] = []
@@ -68,10 +70,26 @@ struct LetterExerciseView: View {
                 sessionCompletedView
             } else if let letter = currentLetter {
                 // Letter display
-                Text(letter.arabic)
-                    .font(.system(size: 120))
-                    .fontWeight(.bold)
-                    .padding(.vertical, 40)
+                HStack(spacing: 16) {
+                    Text(letter.arabic)
+                        .font(.system(size: 70))
+                        .fontWeight(.bold)
+                        .padding(.vertical, 30)
+                    
+                    // Add speaker button
+                    Button(action: {
+                        speakLetter(letter)
+                    }) {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.blue)
+                            .padding(8)
+                            .background(
+                                Circle()
+                                    .fill(Color.blue.opacity(0.1))
+                            )
+                    }
+                }
                 
                 Text("What is this letter called?")
                     .font(.title3)
@@ -268,6 +286,11 @@ struct LetterExerciseView: View {
         letterStore.updateLetterProgress(letterId: currentLetter.id, isCorrect: isCorrect)
         
         showingResult = true
+    }
+    
+    private func speakLetter(_ letter: ArabicLetterItem) {
+        print("Speaking letter: \(letter.arabic)")
+        speechSynthesizer.speak(letter.arabic)
     }
 }
 

@@ -89,17 +89,20 @@ struct SpeakExerciseView: View {
     @State private var audioPlayer: AVAudioPlayer?
     @State private var isRecording = false
     @State private var isProcessingResult = false
-    @State private var debugMode = true // Set to true to see debug info
+    @State private var debugMode = false // Set to true to see debug info
     @State private var hasBeenGraded = false // Track if the current attempt has been graded
     
     // Stats
     @State private var correctAnswers = 0
     @State private var incorrectAnswers = 0
     
-    // Add these properties to better manage recognition state
+    // Add this property to store the final recognized text
     @State private var finalRecognizedText: String = ""
-    @State private var recognitionInProgress = false
-    @State private var lastRecognizedText: String = ""
+    
+    // Add these properties to better track recognition state
+    @State private var recognitionBuffer: [String] = []
+    @State private var recognitionTimer: Timer?
+    @State private var lastNonEmptyText: String = ""
     
     enum FeedbackState {
         case waiting
@@ -209,20 +212,9 @@ struct SpeakExerciseView: View {
                 VStack(spacing: 16) {
                     switch feedbackState {
                     case .waiting:
-                        Text("Hold the microphone button and speak the word")
-                            .font(.headline)
-                            .multilineTextAlignment(.center)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal)
-                        
                         // "HOLD TO SPEAK" instruction that pulses
                         if showHoldInstruction {
-                            Text("HOLD TO SPEAK")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundColor(.blue)
-                                .padding(.vertical, 4)
-                                .opacity(0.8)
+                        // empty
                         }
                         
                     case .recording:
@@ -253,6 +245,7 @@ struct SpeakExerciseView: View {
                         .foregroundColor(.white)
                         .cornerRadius(10)
                         .shadow(color: Color.green.opacity(0.3), radius: 5, x: 0, y: 3)
+                        .padding()
                         
                     case .tryAgain:
                         Text("Try Again")
@@ -277,31 +270,20 @@ struct SpeakExerciseView: View {
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.red)
-                        
-                        Text("The correct pronunciation is:")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
+
                         Button(action: {
-                            speakWord(word)
-                        }) {
-                            Label("Listen", systemImage: "speaker.wave.2.fill")
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(8)
-                        }
-                        .disabled(speechSynthesizer.isPlaying)
-                        
-                        Button("Continue") {
                             moveToNextWord()
+                        }) {
+                            Text("Continue")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                        .shadow(color: Color.blue.opacity(0.3), radius: 5, x: 0, y: 3)
+                        .padding()
                     }
                 }
                 .frame(height: 150)
@@ -330,42 +312,51 @@ struct SpeakExerciseView: View {
                 }
                 
                 // Microphone button
-                ZStack {
-                    Circle()
-                        .fill(isRecording ? Color.red : Color.blue)
-                        .frame(width: 70, height: 70)
-                        .shadow(color: (isRecording ? Color.red : Color.blue).opacity(0.3), radius: 10, x: 0, y: 5)
-                    
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 30))
-                        .foregroundColor(.white)
-                        .scaleEffect(isRecording ? 1.2 : 1.0)
-                        .animation(.spring(response: 0.3), value: isRecording)
+                VStack { 
+                    Text("HOLD TO SPEAK")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.blue)
+                        .padding(.vertical, 4)
+                        .opacity(0.8)
+
+                    ZStack {
+                        Circle()
+                            .fill(isRecording ? Color.red : Color.blue)
+                            .frame(width: 70, height: 70)
+                            .shadow(color: (isRecording ? Color.red : Color.blue).opacity(0.3), radius: 10, x: 0, y: 5)
+                        
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 30))
+                            .foregroundColor(.white)
+                            .scaleEffect(isRecording ? 1.2 : 1.0)
+                            .animation(.spring(response: 0.3), value: isRecording)
+                    }
+                    .frame(width: 70, height: 70)
+                    .padding(.bottom, 30)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { _ in
+                                if !isRecording && !isProcessingResult && feedbackState != .correct && feedbackState != .incorrect {
+                                    startRecording()
+                                }
+                            }
+                            .onEnded { _ in
+                                if isRecording {
+                                    stopRecording()
+                                }
+                            }
+                    )
+                    .disabled(isProcessingResult || feedbackState == .correct || feedbackState == .incorrect)
+                    .opacity((isProcessingResult || feedbackState == .correct || feedbackState == .incorrect) ? 0.5 : 1.0)
                 }
-                .frame(width: 70, height: 70)
-                .padding(.bottom, 30)
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { _ in
-                            if !isRecording && !isProcessingResult && feedbackState != .correct && feedbackState != .incorrect {
-                                startRecording()
-                            }
-                        }
-                        .onEnded { _ in
-                            if isRecording {
-                                stopRecording()
-                            }
-                        }
-                )
-                .disabled(isProcessingResult || feedbackState == .correct || feedbackState == .incorrect)
-                .opacity((isProcessingResult || feedbackState == .correct || feedbackState == .incorrect) ? 0.5 : 1.0)
             }
             
             // Example usage of getRecordingURL
-            Button("Show Recording Path") {
-                let url = getRecordingURL()
-                print("Recording URL: \(url.path)")
-            }
+            // Button("Show Recording Path") {
+            //     let url = getRecordingURL()
+            //     print("Recording URL: \(url.path)")
+            // }
         }
         .navigationTitle("Speak")
         .navigationBarTitleDisplayMode(.inline)
@@ -530,66 +521,105 @@ struct SpeakExerciseView: View {
         feedbackState = .recording
         recognizedText = ""
         finalRecognizedText = ""
-        lastRecognizedText = ""
-        recognitionInProgress = true
+        lastNonEmptyText = ""
+        recognitionBuffer.removeAll()
         
-        // Set up a timer to continuously capture recognized text during recording
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            if !self.isRecording {
-                timer.invalidate()
-                return
-            }
-            
-            // Capture any text that appears during recognition
-            if !self.recognizedText.isEmpty {
-                self.lastRecognizedText = self.recognizedText
-                print("Capturing during recognition: \"\(self.lastRecognizedText)\"")
-            }
+        // Configure audio session for recording
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.record, mode: .default)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("Failed to set up audio session for recording: \(error)")
         }
         
-        do {
-            try speechRecognizer.startRecording()
-        } catch {
-            print("Recording error: \(error.localizedDescription)")
+        // Start recording using SpeechRecognizer
+        speechRecognizer.startRecording()
+        
+        // Start a timer to continuously capture recognized text
+        recognitionTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+            guard self.isRecording else { return }
+            
+            // Get current recognized text from the speech recognizer
+            let currentText = self.speechRecognizer.recognizedText
+            self.recognizedText = currentText
+            
+            // Store non-empty text
+            if !currentText.isEmpty {
+                print("Capturing during recognition: \"\(currentText)\"")
+                self.recognitionBuffer.append(currentText)
+                self.lastNonEmptyText = currentText
+            }
         }
     }
     
     private func stopRecording() {
         guard isRecording else { return }
         
-        // First, capture any text we have before stopping
-        if !recognizedText.isEmpty {
-            finalRecognizedText = recognizedText
-        } else if !lastRecognizedText.isEmpty {
-            // Fall back to the last text we captured during recognition
-            finalRecognizedText = lastRecognizedText
-        }
+        // Stop our timer
+        recognitionTimer?.invalidate()
+        recognitionTimer = nil
         
-        print("Final captured text before stopping: \"\(finalRecognizedText)\"")
+        // Get the best text from our buffer
+        let bestText = getBestRecognizedText()
+        finalRecognizedText = bestText
+        
+        print("Final text from buffer: \"\(finalRecognizedText)\"")
+        print("Last non-empty text: \"\(lastNonEmptyText)\"")
+        print("Recognition buffer size: \(recognitionBuffer.count)")
         
         isRecording = false
-        recognitionInProgress = false
         
-        // Stop recording with your existing code
+        // Stop recording using SpeechRecognizer
         speechRecognizer.stopRecording()
         
-        // Reset audio session for playback after recording
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default)
-            try audioSession.setActive(true)
-        } catch {
-            print("Failed to reset audio session: \(error)")
-        }
+        // Reset audio session for playback
+        resetAudioSessionForPlayback()
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard let currentWord = self.currentWord else { return }
             
-            // Use our captured text for evaluation
-            let textToEvaluate = self.finalRecognizedText.isEmpty ? self.lastRecognizedText : self.finalRecognizedText
+            // Use our best available text for evaluation
+            let textToEvaluate = self.getBestTextForEvaluation()
             print("Text being used for evaluation: \"\(textToEvaluate)\"")
             
             self.evaluateRecognitionResult(for: currentWord, withRecognizedText: textToEvaluate)
+        }
+    }
+    
+    private func getBestRecognizedText() -> String {
+        // If buffer is empty, return empty string
+        if recognitionBuffer.isEmpty {
+            return ""
+        }
+        
+        // Return the longest text in our buffer (usually the most complete)
+        return recognitionBuffer
+            .sorted { $0.count > $1.count }
+            .first ?? ""
+    }
+    
+    private func getBestTextForEvaluation() -> String {
+        // Try multiple sources for the text, in order of preference
+        if !finalRecognizedText.isEmpty {
+            return finalRecognizedText
+        } else if !lastNonEmptyText.isEmpty {
+            return lastNonEmptyText
+        } else if !recognitionBuffer.isEmpty {
+            return getBestRecognizedText()
+        } else {
+            return speechRecognizer.recognizedText
+        }
+    }
+    
+    private func resetAudioSessionForPlayback() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .default)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            print("Audio session reset for playback")
+        } catch {
+            print("Failed to reset audio session: \(error)")
         }
     }
     

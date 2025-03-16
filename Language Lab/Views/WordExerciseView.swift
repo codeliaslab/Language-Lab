@@ -1,9 +1,11 @@
 import SwiftUI
+import AVFoundation
 
 struct WordExerciseView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var wordStore = WordStore.shared
+    @StateObject private var speechSynthesizer = SpeechSynthesizer()
     
     @State private var currentWord: ArabicWordItem?
     @State private var options: [String] = []
@@ -91,10 +93,26 @@ struct WordExerciseView: View {
             } else if let word = currentWord {
                 // Word display
                 if exerciseMode == .arabicToEnglish {
-                    Text(word.arabic)
-                        .font(.system(size: 70))
-                        .fontWeight(.bold)
-                        .padding(.vertical, 30)
+                    HStack(spacing: 16) {
+                        Text(word.arabic)
+                            .font(.system(size: 70))
+                            .fontWeight(.bold)
+                            .padding(.vertical, 30)
+                        
+                        // Add speaker button
+                        Button(action: {
+                            speakWord(word)
+                        }) {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.blue)
+                                .padding(8)
+                                .background(
+                                    Circle()
+                                        .fill(Color.blue.opacity(0.1))
+                                )
+                        }
+                    }
                     
                     Text("What does this word mean?")
                         .font(.title3)
@@ -325,6 +343,11 @@ struct WordExerciseView: View {
         wordStore.updateWordProgress(wordId: currentWord.id, isCorrect: isCorrect)
         
         showingResult = true
+    }
+    
+    private func speakWord(_ word: ArabicWordItem) {
+        print("Speaking word: \(word.arabic)")
+        speechSynthesizer.speak(word.arabic)
     }
 }
 

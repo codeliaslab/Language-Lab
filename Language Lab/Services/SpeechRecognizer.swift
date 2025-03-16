@@ -105,29 +105,38 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         // Capture the final recognized text
         let finalText = recognizedText
         
-        // Clean up resources
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
-        recognitionRequest?.endAudio()
+        // First cancel the recognition task
         recognitionTask?.cancel()
+        recognitionTask = nil
         
-        // Properly handle audio session
-        do {
-            // Use setActive(false) with notifyOthersOnDeactivation to avoid session conflicts
-            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-        } catch {
-            print("Failed to deactivate audio session: \(error.localizedDescription)")
+        // Then end the audio request
+        recognitionRequest?.endAudio()
+        recognitionRequest = nil
+        
+        // Stop the audio engine and remove tap
+        if audioEngine.isRunning {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            audioEngine.stop()
         }
+        
+        // Update UI state
+        isRecognizing = false
         
         // Ensure we have the final recognition result
         if recognizedText.isEmpty && !finalText.isEmpty {
             recognizedText = finalText
         }
         
-        isRecognizing = false
-        
-        // Clean up references
-        recognitionRequest = nil
-        recognitionTask = nil
+        // Add a slight delay before deactivating the audio session
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            do {
+                // Only deactivate if no other audio is active
+                try self?.audioSession.setActive(false, 
+                                            options: .notifyOthersOnDeactivation)
+            } catch {
+                print("Audio session deactivation warning: \(error.localizedDescription)")
+                // This is now just a warning, not a critical error
+            }
+        }
     }
 }
