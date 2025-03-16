@@ -54,18 +54,25 @@ struct ContentView: View {
                         VStack(spacing: 15) {
                             sectionHeader(title: "Learn", systemImage: "book.fill")
                             
-                            ExerciseButton(
-                                title: "Letters",
-                                systemImage: "character.textbox"
-                            ) {
-                                showingLetterLearn = true
-                            }
-                            
-                            ExerciseButton(
-                                title: "Words",
-                                systemImage: "text.book.closed"
-                            ) {
-                                showingWordLearn = true
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 15) {
+                                    SquareTileButton(
+                                        title: "Letters",
+                                        systemImage: "character.textbox",
+                                        backgroundColor: .blue
+                                    ) {
+                                        showingLetterLearn = true
+                                    }
+                                    
+                                    SquareTileButton(
+                                        title: "Words",
+                                        systemImage: "text.book.closed",
+                                        backgroundColor: .blue
+                                    ) {
+                                        showingWordLearn = true
+                                    }
+                                }
+                                .padding(.horizontal)
                             }
                         }
                         .padding(.horizontal)
@@ -74,43 +81,48 @@ struct ContentView: View {
                         VStack(spacing: 15) {
                             sectionHeader(title: "Practice", systemImage: "brain.head.profile")
                             
-                            ExerciseButton(
-                                title: "Letters",
-                                systemImage: "character.textbox",
-                                backgroundColor: .purple
-                            ) {
-                                if letterStore.letters.isEmpty {
-                                    alertMessage = "Please wait while letters are being initialized."
-                                    showingAlert = true
-                                } else {
-                                    showingLetterExercise = true
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 15) {
+                                    SquareTileButton(
+                                        title: "Letters",
+                                        systemImage: "character.textbox",
+                                        backgroundColor: .purple
+                                    ) {
+                                        if letterStore.letters.isEmpty {
+                                            alertMessage = "Please wait while letters are being initialized."
+                                            showingAlert = true
+                                        } else {
+                                            showingLetterExercise = true
+                                        }
+                                    }
+                                    
+                                    SquareTileButton(
+                                        title: "Words",
+                                        systemImage: "doc.text",
+                                        backgroundColor: .purple
+                                    ) {
+                                        if wordStore.words.isEmpty {
+                                            alertMessage = "Please wait while words are being initialized."
+                                            showingAlert = true
+                                        } else {
+                                            showingWordExercise = true
+                                        }
+                                    }
+                                    
+                                    SquareTileButton(
+                                        title: "Speaking",
+                                        systemImage: "waveform",
+                                        backgroundColor: .purple
+                                    ) {
+                                        if wordStore.words.isEmpty {
+                                            alertMessage = "Please wait while words are being initialized."
+                                            showingAlert = true
+                                        } else {
+                                            showingSpeakExercise = true
+                                        }
+                                    }
                                 }
-                            }
-                            
-                            ExerciseButton(
-                                title: "Words",
-                                systemImage: "doc.text",
-                                backgroundColor: .purple
-                            ) {
-                                if wordStore.words.isEmpty {
-                                    alertMessage = "Please wait while words are being initialized."
-                                    showingAlert = true
-                                } else {
-                                    showingWordExercise = true
-                                }
-                            }
-                            
-                            ExerciseButton(
-                                title: "Speaking",
-                                systemImage: "waveform",
-                                backgroundColor: .purple
-                            ) {
-                                if wordStore.words.isEmpty {
-                                    alertMessage = "Please wait while words are being initialized."
-                                    showingAlert = true
-                                } else {
-                                    showingSpeakExercise = true
-                                }
+                                .padding(.horizontal)
                             }
                         }
                         .padding(.horizontal)
@@ -225,6 +237,41 @@ struct ContentView: View {
     }
 }
 
+// New square tile button component
+struct SquareTileButton: View {
+    var title: String
+    var systemImage: String
+    var backgroundColor: Color
+    var action: () -> Void
+    
+    init(title: String, systemImage: String, backgroundColor: Color = .blue, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.backgroundColor = backgroundColor
+        self.action = action
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 30))
+                    .foregroundColor(.white)
+                
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.white)
+            }
+            .frame(width: 120, height: 120)
+            .background(backgroundColor)
+            .cornerRadius(15)
+            .shadow(radius: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// Keep the existing ExerciseButton for other parts of the app
 struct ExerciseButton: View {
     var title: String
     var systemImage: String
