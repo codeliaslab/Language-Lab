@@ -144,6 +144,10 @@ struct SpeakExerciseView: View {
     @State private var feedbackGenerator = UINotificationFeedbackGenerator()
     @State private var impactGenerator = UIImpactFeedbackGenerator(style: .light)
     
+    // Add new state variables for progress bar
+    @State private var currentQuestionIndex = 0
+    @State private var totalQuestions = 10
+    
     enum FeedbackState {
         case waiting
         case recording
@@ -156,6 +160,18 @@ struct SpeakExerciseView: View {
         ZStack {
             // Main content
             VStack {
+                // Progress bar at the very top
+                ProgressView(value: Double(currentQuestionIndex), total: Double(totalQuestions))
+                    .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                    .padding(.horizontal)
+                    .animation(.easeInOut(duration: 0.5), value: currentQuestionIndex)
+                
+                // Question counter
+                Text("\(currentQuestionIndex)/\(totalQuestions)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 4)
+                
                 // Header with centered score
                 VStack(spacing: 2) {
                     Text("Score:")
@@ -166,7 +182,7 @@ struct SpeakExerciseView: View {
                         .font(.title3)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 16)
+                .padding(.top, 8)
                 .padding(.bottom, 8)
                 
                 if isLoading {
@@ -603,6 +619,9 @@ struct SpeakExerciseView: View {
         // Get the next word
         currentWord = remainingWords.removeFirst()
         print("Next word: \(currentWord?.arabic ?? "nil") (\(currentWord?.transliteration ?? "nil"))")
+        
+        // Update the question index
+        currentQuestionIndex += 1
     }
     
     private func resetSession() {

@@ -39,11 +39,11 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 30) {
                         // Debug toggle (only visible in development)
-                        #if DEBUG
-                        Toggle("Debug Mode", isOn: $debugMode)
-                            .padding(.horizontal)
-                            .padding(.top, 10)
-                        #endif
+                        // #if DEBUG
+                        // Toggle("Debug Mode", isOn: $debugMode)
+                        //     .padding(.horizontal)
+                        //     .padding(.top, 10)
+                        // #endif
                         
                         // Debug info
                         if debugMode {
@@ -129,7 +129,7 @@ struct ContentView: View {
                     }
                     .padding(.bottom, 20)
                 }
-                .navigationTitle("Language Lab")
+                // .navigationTitle("Language Lab")
                 .sheet(isPresented: $showingLetterExercise) {
                     LetterExerciseView()
                 }

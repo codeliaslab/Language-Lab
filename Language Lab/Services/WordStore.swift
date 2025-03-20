@@ -158,7 +158,7 @@ class WordStore: ObservableObject {
                 // ه (ha)
                 ArabicWordItem(id: UUID(), arabic: "هنا", translation: "here", transliteration: "huna", category: "common", letterPositions: ["ه": "beginning"]),
                 ArabicWordItem(id: UUID(), arabic: "نهر", translation: "river", transliteration: "nahr", category: "nature", letterPositions: ["ه": "middle"]),
-                ArabicWordItem(id: UUID(), arabic: "مياه", translation: "water", transliteration: "miyah", category: "nature", letterPositions: ["ه": "end"]),
+                ArabicWordItem(id: UUID(), arabic: "فواكه", translation: "fruits", transliteration: "fawakeh", category: "food", letterPositions: ["ه": "end"]),
                 
                 // و (waw)
                 ArabicWordItem(id: UUID(), arabic: "ولد", translation: "boy", transliteration: "walad", category: "people", letterPositions: ["و": "beginning"]),
@@ -173,7 +173,6 @@ class WordStore: ObservableObject {
             
             // Add more common words
             newWords.append(contentsOf: [
-                ArabicWordItem(id: UUID(), arabic: "مرحبا", translation: "hello", transliteration: "marhaban", category: "greetings"),
                 ArabicWordItem(id: UUID(), arabic: "شكرا", translation: "thank you", transliteration: "shukran", category: "greetings"),
                 ArabicWordItem(id: UUID(), arabic: "عفوا", translation: "you're welcome", transliteration: "afwan", category: "greetings"),
                 ArabicWordItem(id: UUID(), arabic: "صباح الخير", translation: "good morning", transliteration: "sabah al-khayr", category: "greetings"),
@@ -187,9 +186,13 @@ class WordStore: ObservableObject {
                 ArabicWordItem(id: UUID(), arabic: "نحن", translation: "we", transliteration: "nahnu", category: "pronouns"),
                 ArabicWordItem(id: UUID(), arabic: "واحد", translation: "one", transliteration: "wahid", category: "numbers"),
                 ArabicWordItem(id: UUID(), arabic: "اثنان", translation: "two", transliteration: "ithnan", category: "numbers"),
-                ArabicWordItem(id: UUID(), arabic: "ثلاثة", translation: "three", transliteration: "thalatha", category: "numbers"),
                 ArabicWordItem(id: UUID(), arabic: "أربعة", translation: "four", transliteration: "arba'a", category: "numbers"),
-                ArabicWordItem(id: UUID(), arabic: "خمسة", translation: "five", transliteration: "khamsa", category: "numbers")
+                ArabicWordItem(id: UUID(), arabic: "خمسة", translation: "five", transliteration: "khamsa", category: "numbers"),
+                ArabicWordItem(id: UUID(), arabic: "ستة", translation: "six", transliteration: "sitta", category: "numbers"),
+                ArabicWordItem(id: UUID(), arabic: "سبعة", translation: "seven", transliteration: "sab'a", category: "numbers"),
+                ArabicWordItem(id: UUID(), arabic: "ثمانية", translation: "eight", transliteration: "thamaniya", category: "numbers"),
+                ArabicWordItem(id: UUID(), arabic: "تسعة", translation: "nine", transliteration: "tis'a", category: "numbers"),
+                ArabicWordItem(id: UUID(), arabic: "عشرة", translation: "ten", transliteration: "ashara", category: "numbers")
             ])
             
             // Update on main thread
